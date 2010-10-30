@@ -493,16 +493,17 @@ _DEFINE(AREA,  	       289  /* area(surface)            */)\
 _DEFINE(EXTERIORRING,  290  /* exteriorring(polygon)    */)\
 _DEFINE(NINTERIORRING, 291  /* numinteriorring(polygon) */)\
 _DEFINE(INTERIORRINGN, 292  /* interiorringn(polygon, i)*/)\
-_DEFINE(NUMGEOMETRIES, 293  /* numgeometries(geomcoll)  */)\
-_DEFINE(GEOMETRYN,     294  /* geometryn(geomcoll)      */)\
-_DEFINE(ISEMPTY,       295  /* isempty(geom)            */)\
-_DEFINE(ISSIMPLE,      296  /* issimple(geom)           */)\
-_DEFINE(UNION,         297  /* union(geom, geom)        */)\
-_DEFINE(SRID,          298  /* srid(geom)               */)\
-_DEFINE(NUMPOINTS,     299  /* numpoints(linestring)    */)\
-_DEFINE(TRANSFORM,     300  /* transform(geom)          */)\
-_DEFINE(GEOMWKTRAW,    301  /* AsTextRaw(geom)          */)\
-_DEFINE(GEOMC,         302  /* GeomColl operators       */)\
+_DEFINE(NUMGEOMETRIES, 293 	/* numgeometries(geomcoll) */)\
+_DEFINE(GEOMETRYN,     294  /* geometryn(geomcoll)	   */)\
+_DEFINE(ISEMPTY,       295  /* ISEMPTY(geom)           */)\
+_DEFINE(ISSIMPLE,      296  /* ISSIMPLE(geom)          */)\
+_DEFINE(UNION,	       297  /* union(geom, geom)       */)\
+_DEFINE(SRID,          298  /* SRID(geom)              */)\
+_DEFINE(NUMPOINTS,     299  /* NUMPOINTS(linestring)   */)\
+_DEFINE(TRANSFORM,     300  /* TRANSFORM(geom)         */)\
+_DEFINE(GEOMWKTRAW,    301  /* AsTextRaw(geom)         */)\
+_DEFINE(GEOMC,         302  /* GeomColl operators	   */)\
+_DEFINE(GEOMKML  ,     303  /* asKML(geom) */)\
 _DEFINEEND
 
 

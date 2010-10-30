@@ -2647,6 +2647,24 @@ DB_DATA_VALUE   *dv_out)
 #endif
 }
 
+/* 
+ * This function takes the stored data, splits out the geometry from the stream
+ * and converts it to KML.
+ */
+DB_STATUS
+adu_geom_asKML(
+ADF_CB          *adf_scb,
+DB_DATA_VALUE   *dv_in,
+DB_DATA_VALUE   *dv_out)
+{
+#ifndef _WITH_GEO
+    return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
+#else
+    //return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
+    return "Hello KML"
+#endif
+}
+
 DB_STATUS
 adu_geom_asTextRaw(
 ADF_CB          *adf_scb,

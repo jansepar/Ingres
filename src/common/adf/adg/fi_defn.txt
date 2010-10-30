@@ -13007,3 +13007,16 @@ group ADI_COERCION
 	    result DB_GEOM_TYPE
 	    operands DB_GEOM_TYPE
 	    routine adu_lvch_move
+    
+    operator ADI_GEOMKML_OP type ADI_PREFIX
+        name "asKML" support ADI_INGRES_6
+        alias "asKML"
+
+    fi ADFI_1701_GEOM_AS_KML
+        description geom    : asKML(geom)
+        lenspec ADI_FIXED sizeof(ADP_PERIPHERAL)
+        null_preinst ADE_1CXI_SET_SKIP
+        result DB_LVCH_TYPE
+        operands DB_GEOM_TYPE
+        routine adu_geom_asKML
+        

@@ -4885,6 +4885,15 @@ pst_descinput_walk(
 **	    Code inteligence to use new row buffer. We now collect the
 **	    input rows in the buffer until we fill it up, and then set the
 **	    flag to ask QEF to load the data in one pass
+**      04-oct-2010 (maspa05) bug 124543
+**          Add in extra PARM and QRY lines for SC930 tracing. 
+**      05-oct-2010 (maspa05) bug 124543
+**          Remove extraneous assignment which broke Windows build
+**	7-oct-2010 (stephenb)
+**	    qeu_cptr needs to be aligned on a bus boudary to pervent bus
+**	    errors on some platforms
+**	08-Oct-2010 (troal01)
+**	    Removed i=0, it was causing compile error on Windows.
 */
 
 DB_STATUS
@@ -4963,6 +4972,19 @@ pst_cpdata(PSS_SESBLK *sess_cb, PSQ_CB *psq_cb, PST_QNODE *tree, bool use_qsf)
 	    return (E_DB_ERROR);
 	}
 	qdesc = (PSQ_QDESC *)qsf_rb.qsf_root;
+
+	/* SC930 tracing - if we're here (use_qsf) then this query didn't
+	 * get - re-parsed so we need to output the query here */
+
+	if (ult_always_trace())
+	{
+           void *f = ult_open_tracefile((PTR)psq_cb->psq_sessid);
+	   if (f)
+	   {
+	      ult_print_tracefile(f,SC930_LTYPE_QUERY,qdesc->psq_qrytext);
+	      ult_close_tracefile(f);
+	   }
+	}
 	/* 
 	** When we use QSF for the input data we are being called directly by 
 	** the sequencer (no parsing has been done) and we have not yet opened
@@ -5044,6 +5066,8 @@ pst_cpdata(PSS_SESBLK *sess_cb, PSQ_CB *psq_cb, PST_QNODE *tree, bool use_qsf)
 	block_size = qe_copy->qeu_tup_length + sizeof(QEF_INS_DATA);
     else
 	block_size = rowsize + sizeof(QEF_INS_DATA);
+    /* round to bus size */
+    block_size = DB_ALIGN_MACRO(block_size);
     if (qe_copy->qeu_cleft < block_size)
     {
 	/* 
@@ -5125,6 +5149,29 @@ pst_cpdata(PSS_SESBLK *sess_cb, PSQ_CB *psq_cb, PST_QNODE *tree, bool use_qsf)
 		    qdesc->psq_qrydata[i]->db_length,
 		    data->dt_data + cpatt->cp_ext_offset);
 	    bytecount += qdesc->psq_qrydata[i]->db_length;
+	}
+
+	/* if SC930 tracing is on then output PARM lines for the parameters
+	 * Note we only do this under if (use_qsf) because in the other case
+	 * we've already output the parameters in psq_parseqry() */
+
+	if (ult_always_trace())
+	{
+           void *f = ult_open_tracefile((PTR)psq_cb->psq_sessid);
+	   if (f)
+	   {
+	      char val[DB_MAXSTRING + 80];
+	      char val2[DB_MAXSTRING + 1];
+
+	    for (i = 0; i < qdesc->psq_dnum; i++)
+	    {
+		STprintf(val,"%d:%d=%s",qdesc->psq_qrydata[i]->db_datatype,
+			i,adu_valuetomystr(val2,
+			qdesc->psq_qrydata[i],sess_cb->pss_adfcb));
+		ult_print_tracefile(f,SC930_LTYPE_PARM,val);
+	    }
+	    ult_close_tracefile(f);
+	   }
 	}
     }
     else

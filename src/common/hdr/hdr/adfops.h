@@ -503,6 +503,7 @@ _DEFINE(NUMPOINTS,	   299  /* NUMPOINTS(linestring)   */)\
 _DEFINE(TRANSFORM,	   300  /* TRANSFORM(geom)         */)\
 _DEFINE(GEOMWKTRAW,    301  /* AsTextRaw(geom)         */)\
 _DEFINE(GEOMC,		   302	/* GeomColl operators	   */)\
+_DEFINE(GEOMKML  ,         303  /* asKML(geom) */)\
 _DEFINEEND
 
 

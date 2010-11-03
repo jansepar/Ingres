@@ -2528,7 +2528,7 @@ DB_DATA_VALUE   *dv_out)
     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
 #else
     //return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
-    return "Hello KML"
+    return "Hello KML";
 #endif
 }
 

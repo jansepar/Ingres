@@ -2527,8 +2527,8 @@ DB_DATA_VALUE   *dv_out)
 #ifndef _WITH_GEO
     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
 #else
-    //return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
-    return "Hello KML";
+    TRdisplay("AsKML\n");
+    return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
 #endif
 }
 
@@ -5685,3 +5685,76 @@ getSRS(ADF_CB *adf_scb, DB_SPATIAL_REF_SYS *srs, i4 srid)
     return E_DB_OK;
 }
 #endif
+
+
+DB_STATUS geom_to_kml(
+ADF_CB          *adf_scb,
+DB_DATA_VALUE   *dv_in,
+DB_DATA_VALUE   *dv_out,
+i4 trim,
+i4 precision)
+{
+#ifndef _WITH_GEO
+    return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
+#else
+    DB_STATUS status = E_DB_OK;
+    DB_DATA_VALUE dv_wkt;
+    GEOSContextHandle_t handle;
+    GEOSWKTWriter *wktWriter;
+    GEOSGeometry *geometry = NULL;
+
+    if(ADI_ISNULL_MACRO(dv_in))
+    {
+        ADF_SETNULL_MACRO(dv_out);
+        return E_DB_OK;
+    }
+
+    /* Initialize geos and convert the input data into a geos geometry */
+    handle = initGEOS_r( geos_Notice, geos_Error );
+    status = dataValueToGeos(adf_scb, dv_in, handle, &geometry, FALSE);
+    if(status != E_DB_OK)
+    {
+        finishGEOS_r(handle);
+        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2, 0,
+                "adu_geo_asTest: Bad conversion data value to GEOS"));
+    }
+
+    /* Create a WKT writer and convert the GEOS geometry to WKT. */
+    wktWriter = GEOSWKTWriter_create_r(handle);
+    GEOSWKTWriter_setTrim_r(handle, wktWriter, trim);
+    GEOSWKTWriter_setRoundingPrecision_r(handle, wktWriter, precision);
+    GEOSWKTWriter_setOutputDimension_r(handle, wktWriter, 3 ); /* allow 3D */
+    dv_wkt.db_data = GEOSWKTWriter_write_r(handle, wktWriter, geometry);
+    /* Clean up the WKT writer and the GEOS geometry. */
+    GEOSWKTWriter_destroy_r(handle, wktWriter);
+    GEOSGeom_destroy_r(handle, geometry);
+    if( dv_wkt.db_data == NULL)
+    {
+        finishGEOS_r(handle);
+        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2, 0,
+            "adu_geo_asText: Bad conversion from geom to WKT"));
+    }
+
+    /* Fill out the rest of the data structure. */
+    dv_wkt.db_length = STlen(dv_wkt.db_data);
+    dv_wkt.db_datatype = DB_VBYTE_TYPE;
+
+    /* Convert back to blob in case the data is too large. */
+    status = adu_wkbDV_to_long( adf_scb, &dv_wkt, dv_out );
+    /* Clean up the non long wkt db_data */
+    if(dv_wkt.db_data != NULL)
+    {
+        MEsysfree(dv_wkt.db_data);
+        dv_wkt.db_data = NULL;
+    }
+    if (status != E_DB_OK)
+    {
+        return (adu_error(adf_scb, E_AD5601_GEOSPATIAL_INTERNAL, 2, 0,
+            "asText: Failed to convert WKT to long data value."));
+    }
+
+    /* Clean up GEOS. */
+    finishGEOS_r(handle);
+    return status;
+#endif
+}

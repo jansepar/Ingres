@@ -1,0 +1,294 @@
+diff --git a/src/common/adf/adu/aduspatial.c b/src/common/adf/adu/aduspatial.c
+index cd6eec3..bfa6535 100644
+--- a/src/common/adf/adu/aduspatial.c
++++ b/src/common/adf/adu/aduspatial.c
+@@ -24,6 +24,7 @@
+ #ifdef _WITH_GEO
+ #include    <geos_c.h>
+ #include    <proj_api.h>
++#include    <ogr_api.h>
+ #endif
+ /*
+ **  Name: ADUSPATIAL.C - implements ADF function instances for spatial datatypes.
+@@ -2528,7 +2529,7 @@ DB_DATA_VALUE   *dv_out)
+     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
+ #else
+     TRdisplay("AsKML\n");
+-    return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
++    return geom_to_kml(adf_scb, dv_in, dv_out);
+ #endif
+ }
+ 
+@@ -5690,18 +5691,17 @@ getSRS(ADF_CB *adf_scb, DB_SPATIAL_REF_SYS *srs, i4 srid)
+ DB_STATUS geom_to_kml(
+ ADF_CB          *adf_scb,
+ DB_DATA_VALUE   *dv_in,
+-DB_DATA_VALUE   *dv_out,
+-i4 trim,
+-i4 precision)
++DB_DATA_VALUE   *dv_out)
+ {
++
+ #ifndef _WITH_GEO
+     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
+ #else
+     DB_STATUS status = E_DB_OK;
+-    DB_DATA_VALUE dv_wkt;
+-    GEOSContextHandle_t handle;
+-    GEOSWKTWriter *wktWriter;
+-    GEOSGeometry *geometry = NULL;
++    i4 geomDataSize;
++    DB_DATA_VALUE dv_txt, dv_wkb, dv_kml;
++    i4 numRings, numPoints;
++    storedGeom_t geomData;
+ 
+     if(ADI_ISNULL_MACRO(dv_in))
+     {
+@@ -5709,52 +5709,101 @@ i4 precision)
+         return E_DB_OK;
+     }
+ 
+-    /* Initialize geos and convert the input data into a geos geometry */
+-    handle = initGEOS_r( geos_Notice, geos_Error );
+-    status = dataValueToGeos(adf_scb, dv_in, handle, &geometry, FALSE);
++    /* De-stream the data value into a stored geometry stucture. */
++    status = dataValueToStoredGeom(adf_scb, dv_in, &geomData, FALSE);
+     if(status != E_DB_OK)
+     {
+-        finishGEOS_r(handle);
+-        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2, 0,
+-                "adu_geo_asTest: Bad conversion data value to GEOS"));
++        if(geomData.combinedWKB != NULL)
++        {
++            MEsysfree(geomData.combinedWKB);
++            geomData.combinedWKB = NULL;
++        }
++        return (adu_error(adf_scb, E_AD5601_GEOSPATIAL_INTERNAL, 2, 0,
++            "asBinary: Failed to convert datavalue to geom data."));
+     }
+ 
+-    /* Create a WKT writer and convert the GEOS geometry to WKT. */
+-    wktWriter = GEOSWKTWriter_create_r(handle);
+-    GEOSWKTWriter_setTrim_r(handle, wktWriter, trim);
+-    GEOSWKTWriter_setRoundingPrecision_r(handle, wktWriter, precision);
+-    GEOSWKTWriter_setOutputDimension_r(handle, wktWriter, 3 ); /* allow 3D */
+-    dv_wkt.db_data = GEOSWKTWriter_write_r(handle, wktWriter, geometry);
+-    /* Clean up the WKT writer and the GEOS geometry. */
+-    GEOSWKTWriter_destroy_r(handle, wktWriter);
+-    GEOSGeom_destroy_r(handle, geometry);
+-    if( dv_wkt.db_data == NULL)
++    /* 
++     * Create space for the geometry WKB and copy out just the geometry WKB by
++     * starting the pointer at the size of the envelope WKB.
++     */
++    dv_wkb.db_data = MEmalloc(geomData.geomSize);
++    if(dv_wkb.db_data == NULL)
+     {
+-        finishGEOS_r(handle);
+-        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2, 0,
+-            "adu_geo_asText: Bad conversion from geom to WKT"));
++        if(geomData.combinedWKB != NULL)
++        {
++            MEsysfree(geomData.combinedWKB);
++            geomData.combinedWKB = NULL;
++        }
++        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2,0,
++                "asBinary: couldn't allocate memory to dv_wkb.db_data."));
+     }
++    MEcopy(&geomData.combinedWKB[geomData.envelopeSize], geomData.geomSize, 
++           dv_wkb.db_data);
+ 
+-    /* Fill out the rest of the data structure. */
+-    dv_wkt.db_length = STlen(dv_wkt.db_data);
+-    dv_wkt.db_datatype = DB_VBYTE_TYPE;
++    /* Convert wkb into kml */
++    OGRErr eErr;
++    OGRGeometryH hGeom = NULL;
++    char *kml = NULL;
++    unsigned char *wkbBuffer;
+ 
+-    /* Convert back to blob in case the data is too large. */
+-    status = adu_wkbDV_to_long( adf_scb, &dv_wkt, dv_out );
+-    /* Clean up the non long wkt db_data */
+-    if(dv_wkt.db_data != NULL)
++    wkbBuffer = MEmalloc(geomData.geomSize);
++    MEcopy(&geomData.combinedWKB[geomData.envelopeSize], geomData.geomSize, wkbBuffer);
++
++    eErr = OGR_G_CreateFromWkb( wkbBuffer, NULL, &hGeom, -1 );
++
++    if( eErr == OGRERR_NONE )
+     {
+-        MEsysfree(dv_wkt.db_data);
+-        dv_wkt.db_data = NULL;
++	    kml = OGR_G_ExportToKML( hGeom, "???I do not know what this is" );
++	    OGR_G_DestroyGeometry( hGeom );
++	    TRdisplay( "kml = %s\n", kml );
++	    //CPLFree( kml );
++    }
++    else if( eErr == OGRERR_NOT_ENOUGH_DATA )
++    {
++	    TRdisplay( "error2");
+     }
++    else if( eErr == OGRERR_UNSUPPORTED_GEOMETRY_TYPE )
++    {
++	    TRdisplay( "error2" );
++    }
++    else if( eErr == OGRERR_CORRUPT_DATA )
++    {
++	    TRdisplay( "error3" );
++    };
++   
++
++    /* Clean up the memory no longer required. */
++    if(geomData.combinedWKB != NULL)
++    {
++        MEsysfree(geomData.combinedWKB);
++        geomData.combinedWKB = NULL;
++    }
++
++    /* Fill out the rest of the data structure. */
++    dv_wkb.db_length = geomData.geomSize;
++    dv_wkb.db_datatype = DB_VBYTE_TYPE;
++
++    /* Convert back to blob in case the data is too large. */
++    status = adu_wkbDV_to_long( adf_scb, &dv_wkb, dv_out );
+     if (status != E_DB_OK)
+     {
++        if(dv_wkb.db_data != NULL)
++        {
++            MEsysfree(dv_wkb.db_data);
++            dv_wkb.db_data = NULL;
++        }
+         return (adu_error(adf_scb, E_AD5601_GEOSPATIAL_INTERNAL, 2, 0,
+-            "asText: Failed to convert WKT to long data value."));
++            "asBinary: Failed to convert WKB to long data value."));
++    }
++
++    /* Clean up the data structure and finalize GEOS. */
++    if(dv_wkb.db_data != NULL)
++    {
++        MEsysfree(dv_wkb.db_data);
++        dv_wkb.db_data = NULL;
+     }
+ 
+-    /* Clean up GEOS. */
+-    finishGEOS_r(handle);
+     return status;
+ #endif
++
+ }
+diff --git a/src/tools/port/jam/Jamrules b/src/tools/port/jam/Jamrules
+index bdb12bc..0416ffc 100644
+--- a/src/tools/port/jam/Jamrules
++++ b/src/tools/port/jam/Jamrules
+@@ -3962,10 +3962,10 @@ rule IINEEDLIBS
+ 				#otherwise we dynamically link libgeos/libproj, if required.
+ 				else
+ 				{
+-					LINKLIBS on $(<) += -L$(GEOS_LOC) -L$(PROJ_LOC) -lgeos -lgeos_c -lproj ;
++					LINKLIBS on $(<) += -L$(GEOS_LOC) -L$(PROJ_LOC) -lgeos -lgeos_c -lproj -lgdal ;
+ 					if $(VERSHB)
+ 					{
+-						LINKLIBS on $(SUFHB)/$(<) += -L$(GEOSHB_LOC) -L$(PROJHB_LOC) -lgeos -lgeos_c -lproj ;
++						LINKLIBS on $(SUFHB)/$(<) += -L$(GEOSHB_LOC) -L$(PROJHB_LOC) -lgeos -lgeos_c -lproj -lgdal ;
+ 					}
+ 				}
+ 			}
+diff --git a/src/tools/port/jam/precheck_functions b/src/tools/port/jam/precheck_functions
+index 965d5c1..c627c8a 100644
+--- a/src/tools/port/jam/precheck_functions
++++ b/src/tools/port/jam/precheck_functions
+@@ -407,6 +407,29 @@ check_for_libxml2 ()
+     compose_msg "libxml2-devel" "libxml2-devel" "libxml2-devel" "libxml2-devel" "libxml2-devel"
+ }
+ 
++check_for_gdal ()
++{
++    #If GDAL locations aren't specified, try to figure out reasonable values
++    if [ -z "$GDAL_LOC" ] ; then
++        if [ -e /usr/local/lib/libgdal.so ] ; then
++            export GDAL_LOC="/usr/local/lib"
++        elif [ -e /usr/lib/libgdal.so ] ; then
++            export GDAL_LOC="/usr/lib"
++        else
++            msg=${msg}"\nCouldn't find GDAL libraries, please set GDAL_LOC" 
++        fi
++        if [ ! -z "$GDAL_LOC" ] ; then
++            echo "GDAL_LOC was not set, using $GDAL_LOC"
++        fi
++    else
++        if [ ! -e $GDAL_LOC/libgdal.so ] ; then
++           msg=${msg}"\nGDAL libraries were not found in $GDAL_LOC, unsetting GDAL_LOC."
++           unset GDAL_LOC
++        fi
++    fi
++    
++    
++}
+ check_for_geos ()
+ {
+     #If GEOS locations aren't specified, try to figure out reasonable values
+diff --git a/src/tools/port/shell_unix/mkdefault.sh b/src/tools/port/shell_unix/mkdefault.sh
+index 0b17b51..2b15d16 100644
+--- a/src/tools/port/shell_unix/mkdefault.sh
++++ b/src/tools/port/shell_unix/mkdefault.sh
+@@ -1623,15 +1623,15 @@ case $vers in
+     int_rpl)
+ 	    if [ "$conf_WITH_GEO" ] ; then
+ 	    	if [ "$build_arch" = '32+64' ] ; then
+-	    		prefix32 = "-L$GEOSHB_LOC -L$PROJHB_LOC"
+-	    		prefix64 = "-L$GEOS_LOC -L$PROJ_LOC"
++	    		prefix32 = "-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC"
++	    		prefix64 = "-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC"
+ 	    	elif [ "$build_arch" = '64+32' ] ; then
+-	    		prefix32 = "-L$GEOS_LOC -L$PROJ_LOC"
+-	    		prefix64 = "-L$GEOSHB_LOC -L$PROJHB_LOC"
++	    		prefix32 = "-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC"
++	    		prefix64 = "-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC"
+ 	    	else
+-	    		prefix = "-L$GEOS_LOC -L$PROJ_LOC"
++	    		prefix = "-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC"
+ 	    	fi
+-	        GEOS_LD="-lgeos -lgeos_c -lproj"
++	        GEOS_LD="-lgeos -lgeos_c -lproj -lgdal"
+ 	    else
+ 	        GEOS_LD=""
+ 	    fi
+diff --git a/src/tools/port/shell_unix/mkshlibs.sh b/src/tools/port/shell_unix/mkshlibs.sh
+index 4279410..3c87e6a 100644
+--- a/src/tools/port/shell_unix/mkshlibs.sh
++++ b/src/tools/port/shell_unix/mkshlibs.sh
+@@ -1249,11 +1249,11 @@ fi
+         ;;
+     *_lnx|int_rpl)
+ 	if [ "$conf_WITH_GEO" ] ; then
+-		geo_libs=" -lgeos -lgeos_c -lproj "
++		geo_libs=" -lgeos -lgeos_c -lproj -lgdal "
+ 		if [ "$do_hyb" = "true" ] ; then
+-			GEOS_LD="-L$GEOSHB_LOC -L$PROJHB_LOC $geo_libs"
++			GEOS_LD="-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC $geo_libs"
+ 		else
+-			GEOS_LD="-L$GEOS_LOC -L$PROJ_LOC $geo_libs"
++			GEOS_LD="-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC $geo_libs"
+ 		fi
+ 	else
+ 		GEOS_LD=""
+diff --git a/src/tools/port/shell_unix/mksvrshlibs.sh b/src/tools/port/shell_unix/mksvrshlibs.sh
+index 462f7b9..9d585f0 100644
+--- a/src/tools/port/shell_unix/mksvrshlibs.sh
++++ b/src/tools/port/shell_unix/mksvrshlibs.sh
+@@ -1119,11 +1119,11 @@ then
+         ;;
+       *_lnx|int_rpl)
+         if [ "$conf_WITH_GEO" ] ; then
+-			geo_libs=" -lgeos -lgeos_c -lproj "
++			geo_libs=" -lgeos -lgeos_c -lproj -lgdal "
+ 			if [ "$do_hyb" = "true" ] ; then
+-				GEOS_LD="-L$GEOSHB_LOC -L$PROJHB_LOC $geo_libs"
++				GEOS_LD="-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC $geo_libs"
+ 			else
+-				GEOS_LD="-L$GEOS_LOC -L$PROJ_LOC $geo_libs"
++				GEOS_LD="-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC $geo_libs"
+ 			fi
+         else
+             GEOS_LD=""

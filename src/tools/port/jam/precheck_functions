@@ -407,6 +407,29 @@ check_for_libxml2 ()
     compose_msg "libxml2-devel" "libxml2-devel" "libxml2-devel" "libxml2-devel" "libxml2-devel"
 }
 
+check_for_gdal ()
+{
+    #If GDAL locations aren't specified, try to figure out reasonable values
+    if [ -z "$GDAL_LOC" ] ; then
+        if [ -e /usr/local/lib/libgdal.so ] ; then
+            export GDAL_LOC="/usr/local/lib"
+        elif [ -e /usr/lib/libgdal.so ] ; then
+            export GDAL_LOC="/usr/lib"
+        else
+            msg=${msg}"\nCouldn't find GDAL libraries, please set GDAL_LOC" 
+        fi
+        if [ ! -z "$GDAL_LOC" ] ; then
+            echo "GDAL_LOC was not set, using $GDAL_LOC"
+        fi
+    else
+        if [ ! -e $GDAL_LOC/libgdal.so ] ; then
+           msg=${msg}"\nGDAL libraries were not found in $GDAL_LOC, unsetting GDAL_LOC."
+           unset GDAL_LOC
+        fi
+    fi
+    
+    
+}
 check_for_geos ()
 {
     #If GEOS locations aren't specified, try to figure out reasonable values
@@ -545,6 +568,9 @@ precheck ()
 
   # check for GEOS
   [ "$geos_need" = "true" ] && check_for_geos
+
+  # check for GEOS
+  [ "$gdal_need" = "true" ] && check_for_gdal
 
   # check for PROJ
   [ "$proj_need" = "true" ] && check_for_proj

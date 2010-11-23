@@ -3962,10 +3962,10 @@ rule IINEEDLIBS
 				#otherwise we dynamically link libgeos/libproj, if required.
 				else
 				{
-					LINKLIBS on $(<) += -L$(GEOS_LOC) -L$(PROJ_LOC) -lgeos -lgeos_c -lproj ;
+					LINKLIBS on $(<) += -L$(GEOS_LOC) -L$(PROJ_LOC) -lgeos -lgeos_c -lproj -lgdal ;
 					if $(VERSHB)
 					{
-						LINKLIBS on $(SUFHB)/$(<) += -L$(GEOSHB_LOC) -L$(PROJHB_LOC) -lgeos -lgeos_c -lproj ;
+						LINKLIBS on $(SUFHB)/$(<) += -L$(GEOSHB_LOC) -L$(PROJHB_LOC) -lgeos -lgeos_c -lproj -lgdal ;
 					}
 				}
 			}

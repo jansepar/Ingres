@@ -1119,11 +1119,11 @@ then
         ;;
       *_lnx|int_rpl)
         if [ "$conf_WITH_GEO" ] ; then
-			geo_libs=" -lgeos -lgeos_c -lproj "
+			geo_libs=" -lgeos -lgeos_c -lproj -lgdal "
 			if [ "$do_hyb" = "true" ] ; then
-				GEOS_LD="-L$GEOSHB_LOC -L$PROJHB_LOC $geo_libs"
+				GEOS_LD="-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC $geo_libs"
 			else
-				GEOS_LD="-L$GEOS_LOC -L$PROJ_LOC $geo_libs"
+				GEOS_LD="-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC $geo_libs"
 			fi
         else
             GEOS_LD=""

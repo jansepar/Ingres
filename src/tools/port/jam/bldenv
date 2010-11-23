@@ -288,6 +288,7 @@ case ${unames} in
 	libxml2_need=true
 	include_flag=-I
         geos_need=true
+        gdal_need=true
         proj_need=true
 
 	case ${unamem} in

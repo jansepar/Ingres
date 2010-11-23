@@ -24,6 +24,7 @@
 #ifdef _WITH_GEO
 #include    <geos_c.h>
 #include    <proj_api.h>
+#include    <ogr_api.h>
 #endif
 /*
 **  Name: ADUSPATIAL.C - implements ADF function instances for spatial datatypes.
@@ -2528,7 +2529,7 @@ DB_DATA_VALUE   *dv_out)
     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
 #else
     TRdisplay("AsKML\n");
-    return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
+    return geom_to_kml(adf_scb, dv_in, dv_out);
 #endif
 }
 
@@ -5690,18 +5691,17 @@ getSRS(ADF_CB *adf_scb, DB_SPATIAL_REF_SYS *srs, i4 srid)
 DB_STATUS geom_to_kml(
 ADF_CB          *adf_scb,
 DB_DATA_VALUE   *dv_in,
-DB_DATA_VALUE   *dv_out,
-i4 trim,
-i4 precision)
+DB_DATA_VALUE   *dv_out)
 {
+
 #ifndef _WITH_GEO
     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
 #else
     DB_STATUS status = E_DB_OK;
-    DB_DATA_VALUE dv_wkt;
-    GEOSContextHandle_t handle;
-    GEOSWKTWriter *wktWriter;
-    GEOSGeometry *geometry = NULL;
+    i4 geomDataSize;
+    DB_DATA_VALUE dv_txt, dv_wkb, dv_kml;
+    i4 numRings, numPoints;
+    storedGeom_t geomData;
 
     if(ADI_ISNULL_MACRO(dv_in))
     {
@@ -5709,52 +5709,101 @@ i4 precision)
         return E_DB_OK;
     }
 
-    /* Initialize geos and convert the input data into a geos geometry */
-    handle = initGEOS_r( geos_Notice, geos_Error );
-    status = dataValueToGeos(adf_scb, dv_in, handle, &geometry, FALSE);
+    /* De-stream the data value into a stored geometry stucture. */
+    status = dataValueToStoredGeom(adf_scb, dv_in, &geomData, FALSE);
     if(status != E_DB_OK)
     {
-        finishGEOS_r(handle);
-        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2, 0,
-                "adu_geo_asTest: Bad conversion data value to GEOS"));
+        if(geomData.combinedWKB != NULL)
+        {
+            MEsysfree(geomData.combinedWKB);
+            geomData.combinedWKB = NULL;
+        }
+        return (adu_error(adf_scb, E_AD5601_GEOSPATIAL_INTERNAL, 2, 0,
+            "asBinary: Failed to convert datavalue to geom data."));
     }
 
-    /* Create a WKT writer and convert the GEOS geometry to WKT. */
-    wktWriter = GEOSWKTWriter_create_r(handle);
-    GEOSWKTWriter_setTrim_r(handle, wktWriter, trim);
-    GEOSWKTWriter_setRoundingPrecision_r(handle, wktWriter, precision);
-    GEOSWKTWriter_setOutputDimension_r(handle, wktWriter, 3 ); /* allow 3D */
-    dv_wkt.db_data = GEOSWKTWriter_write_r(handle, wktWriter, geometry);
-    /* Clean up the WKT writer and the GEOS geometry. */
-    GEOSWKTWriter_destroy_r(handle, wktWriter);
-    GEOSGeom_destroy_r(handle, geometry);
-    if( dv_wkt.db_data == NULL)
+    /* 
+     * Create space for the geometry WKB and copy out just the geometry WKB by
+     * starting the pointer at the size of the envelope WKB.
+     */
+    dv_wkb.db_data = MEmalloc(geomData.geomSize);
+    if(dv_wkb.db_data == NULL)
     {
-        finishGEOS_r(handle);
-        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2, 0,
-            "adu_geo_asText: Bad conversion from geom to WKT"));
+        if(geomData.combinedWKB != NULL)
+        {
+            MEsysfree(geomData.combinedWKB);
+            geomData.combinedWKB = NULL;
+        }
+        return (adu_error(adf_scb, E_AD5600_GEOSPATIAL_USER, 2,0,
+                "asBinary: couldn't allocate memory to dv_wkb.db_data."));
+    }
+    MEcopy(&geomData.combinedWKB[geomData.envelopeSize], geomData.geomSize, 
+           dv_wkb.db_data);
+
+    /* Convert wkb into kml */
+    OGRErr eErr;
+    OGRGeometryH hGeom = NULL;
+    char *kml = NULL;
+    unsigned char *wkbBuffer;
+
+    wkbBuffer = MEmalloc(geomData.geomSize);
+    MEcopy(&geomData.combinedWKB[geomData.envelopeSize], geomData.geomSize, wkbBuffer);
+
+    eErr = OGR_G_CreateFromWkb( wkbBuffer, NULL, &hGeom, -1 );
+
+    if( eErr == OGRERR_NONE )
+    {
+	    kml = OGR_G_ExportToKML( hGeom, "???I do not know what this is" );
+	    OGR_G_DestroyGeometry( hGeom );
+	    TRdisplay( "kml = %s\n", kml );
+	    //CPLFree( kml );
+    }
+    else if( eErr == OGRERR_NOT_ENOUGH_DATA )
+    {
+	    TRdisplay( "error2");
+    }
+    else if( eErr == OGRERR_UNSUPPORTED_GEOMETRY_TYPE )
+    {
+	    TRdisplay( "error2" );
+    }
+    else if( eErr == OGRERR_CORRUPT_DATA )
+    {
+	    TRdisplay( "error3" );
+    };
+   
+
+    /* Clean up the memory no longer required. */
+    if(geomData.combinedWKB != NULL)
+    {
+        MEsysfree(geomData.combinedWKB);
+        geomData.combinedWKB = NULL;
     }
 
     /* Fill out the rest of the data structure. */
-    dv_wkt.db_length = STlen(dv_wkt.db_data);
-    dv_wkt.db_datatype = DB_VBYTE_TYPE;
+    dv_wkb.db_length = geomData.geomSize;
+    dv_wkb.db_datatype = DB_VBYTE_TYPE;
 
     /* Convert back to blob in case the data is too large. */
-    status = adu_wkbDV_to_long( adf_scb, &dv_wkt, dv_out );
-    /* Clean up the non long wkt db_data */
-    if(dv_wkt.db_data != NULL)
-    {
-        MEsysfree(dv_wkt.db_data);
-        dv_wkt.db_data = NULL;
-    }
+    status = adu_wkbDV_to_long( adf_scb, &dv_wkb, dv_out );
     if (status != E_DB_OK)
     {
+        if(dv_wkb.db_data != NULL)
+        {
+            MEsysfree(dv_wkb.db_data);
+            dv_wkb.db_data = NULL;
+        }
         return (adu_error(adf_scb, E_AD5601_GEOSPATIAL_INTERNAL, 2, 0,
-            "asText: Failed to convert WKT to long data value."));
+            "asBinary: Failed to convert WKB to long data value."));
     }
 
-    /* Clean up GEOS. */
-    finishGEOS_r(handle);
+    /* Clean up the data structure and finalize GEOS. */
+    if(dv_wkb.db_data != NULL)
+    {
+        MEsysfree(dv_wkb.db_data);
+        dv_wkb.db_data = NULL;
+    }
+
     return status;
 #endif
+
 }

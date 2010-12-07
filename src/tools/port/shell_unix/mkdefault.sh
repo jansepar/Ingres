@@ -1623,15 +1623,15 @@ case $vers in
     int_rpl)
 	    if [ "$conf_WITH_GEO" ] ; then
 	    	if [ "$build_arch" = '32+64' ] ; then
-	    		prefix32 = "-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC"
-	    		prefix64 = "-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC"
+	    		prefix32 = "-L$GEOSHB_LOC -L$PROJHB_LOC"
+	    		prefix64 = "-L$GEOS_LOC -L$PROJ_LOC"
 	    	elif [ "$build_arch" = '64+32' ] ; then
-	    		prefix32 = "-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC"
-	    		prefix64 = "-L$GEOSHB_LOC -L$PROJHB_LOC -L$GDAL_LOC"
+	    		prefix32 = "-L$GEOS_LOC -L$PROJ_LOC"
+	    		prefix64 = "-L$GEOSHB_LOC -L$PROJHB_LOC"
 	    	else
-	    		prefix = "-L$GEOS_LOC -L$PROJ_LOC -L$GDAL_LOC"
+	    		prefix = "-L$GEOS_LOC -L$PROJ_LOC"
 	    	fi
-	        GEOS_LD="-lgeos -lgeos_c -lproj -lgdal"
+	        GEOS_LD="-lgeos -lgeos_c -lproj"
 	    else
 	        GEOS_LD=""
 	    fi

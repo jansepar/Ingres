@@ -2661,7 +2661,23 @@ DB_DATA_VALUE   *dv_out)
     return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
 #else
     TRdisplay("AsKML\n");
-    return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
+
+    DB_STATUS status = E_DB_OK;
+    char *message = "Functionality is not implemented, this is a stub!";
+    DB_DATA_VALUE dv_kml;
+
+    dv_kml.db_data = STalloc(message);
+    dv_kml.db_length = STlen(message);
+    dv_kml.db_datatype = DB_VBYTE_TYPE;
+    
+    status = adu_wkbDV_to_long( adf_scb, &dv_kml, dv_out );
+
+    return status;
+    
+    //return geom_to_text(adf_scb, dv_in, dv_out, TRUE, FULL_PRECISION);
+    //return (adu_error(adf_scb, E_AD5601_GEOSPATIAL_INTERNAL, 2, 0,
+    //        "asKML: This is just a stub placeholder for the function, there\
+    //		is currently no working asKML functionality."));
 #endif
 }
 

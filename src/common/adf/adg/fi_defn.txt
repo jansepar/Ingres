@@ -10351,15 +10351,23 @@ group ADI_NORM_FUNC
         
     operator ADI_GEOMKML_OP type ADI_PREFIX
         name "asKML" support ADI_INGRES_6
+        alias "geomfromKML"
 
-    fi ADFI_1701_GEOM_AS_KML
-        description geom    : asKML(geom)
-        lenspec ADI_FIXED sizeof(ADP_PERIPHERAL)
-        null_preinst ADE_1CXI_SET_SKIP
-        result DB_LVCH_TYPE
-        operands DB_GEOM_TYPE
-        routine adu_geom_asKML
+        fi ADFI_1701_GEOM_AS_KML
+            description geom    : asKML(geom)
+            lenspec ADI_FIXED sizeof(ADP_PERIPHERAL)
+            null_preinst ADE_1CXI_SET_SKIP
+            result DB_LVCH_TYPE
+            operands DB_GEOM_TYPE
+            routine adu_geom_asKML
         
+	fi ADFI_1702_GEOM_FROM_KML
+	    description geom    : geometryfromKML(text)
+	    lenspec ADI_FIXED sizeof(ADP_PERIPHERAL)
+	    null_preinst ADE_1CXI_SET_SKIP
+	    result DB_GEOM_TYPE
+	    operands DB_LVCH_TYPE
+	    routine adu_geometry_fromKML
 
 
 group ADI_COPY_COERCION

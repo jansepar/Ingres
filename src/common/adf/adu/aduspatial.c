@@ -2681,6 +2681,35 @@ DB_DATA_VALUE   *dv_out)
 #endif
 }
 
+
+/* Specify a geometry is expected from the input KML. */
+DB_STATUS
+adu_geometry_fromKML(
+ADF_CB          *adf_scb,
+DB_DATA_VALUE   *dv_in,
+DB_DATA_VALUE   *dv_out)
+{
+#ifndef _WITH_GEO
+    return (adu_error(adf_scb, E_AD5606_SPATIAL_NOT_SUPPORTED, 2, 0));
+#else
+    TRdisplay("fromKML\n");
+
+    DB_STATUS status = E_DB_OK;
+    char *message = "fromKML functionality is not implemented, this is a stub!";
+    DB_DATA_VALUE dv_kml;
+
+    dv_kml.db_data = STalloc(message);
+    dv_kml.db_length = STlen(message);
+    dv_kml.db_datatype = DB_VBYTE_TYPE;
+    
+    status = adu_wkbDV_to_long( adf_scb, &dv_kml, dv_out );
+
+    return status;
+    //return adu_geo_fromText(adf_scb, dv_in, NULL, dv_out, 
+   // 		GENERIC_GEOMETRY);
+#endif
+}
+
 DB_STATUS
 adu_geom_asTextRaw(
 ADF_CB          *adf_scb,

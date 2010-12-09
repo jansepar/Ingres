@@ -737,6 +737,7 @@ FUNC_EXTERN ADU_NORM1_FUNC adu_multipolygon_fromText;
 FUNC_EXTERN ADU_NORM1_FUNC adu_multipolygon_fromWKB;
 FUNC_EXTERN ADU_NORM1_FUNC adu_geometry_fromText;
 FUNC_EXTERN ADU_NORM1_FUNC adu_geometry_fromWKB;
+FUNC_EXTERN ADU_NORM1_FUNC adu_geometry_fromKML;
 FUNC_EXTERN ADU_NORM1_FUNC adu_geometrycollection_fromText;
 FUNC_EXTERN ADU_NORM1_FUNC adu_geometrycollection_fromWKB;
 
